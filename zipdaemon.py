@@ -13,7 +13,7 @@ from pathlib import Path
 from time import sleep
 from datetime import datetime
 from zipfile import ZipFile, ZIP_DEFLATED
-from argparse import ArgumentParser, FileType
+from argparse import ArgumentParser
 
 class Logger:
 	'Advanced logging functionality'
@@ -40,11 +40,6 @@ class Logger:
 			datefmt = '%Y-%m-%d %H:%M:%S'
 		)
 
-	def rotate(self):
-		'''Rotate and backup old logfile as zip'''
-		logging.shutdown()
-		self._start()
-
 class Walker:
 	'''Walk through root dir and zip if trigger file is in subdir'''
 
@@ -54,24 +49,6 @@ class Walker:
 		self.trigger = trigger
 		self.under = under
 		self.marker = marker
-
-	def _iterdir(self, root):
-		'''Only give directories'''
-		for path in root.iterdir():
-			if path.is_dir():
-				yield path
-
-	def _iter_level(self, current_path, current_level):
-		print('under', self.under, 'cl', current_level)
-		if current_level == self.under:
-			
-			for path in self._iterdir(current_path):
-				print('yield', path)
-				yield path
-		else:
-			for path in self._iterdir(current_path):
-				print(current_path, current_level, path)
-				self._iter_level(path, current_level + 1)
 
 	def run(self):
 		'''Walk through root dir and zip if trigger file is in subdir at given level'''
