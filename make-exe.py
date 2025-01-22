@@ -13,7 +13,7 @@ from shutil import rmtree
 import PyInstaller.__main__
 
 if __name__ == '__main__':	# start here
-	name = 'zipdaemon'
-	PyInstaller.__main__.run(['--onefile', '--name', name])
-	Path(f'{name}.spec').unlink(missing_ok=True)
+	script  = Path('zipdaemon.py')
+	PyInstaller.__main__.run(['--onefile', f'{script}'])
+	script.with_suffix('.spec').unlink(missing_ok=True)
 	rmtree('build')
