@@ -48,35 +48,74 @@ class Logger:
 class Walker:
 	'''Walk through root dir and zip if trigger file is in subdir'''
 
-	def __init__(self, root, trigger):
+	def __init__(self, root, trigger, under, marker):
 		'''Set root dir and trigger file'''
 		self.root = root
 		self.trigger = trigger
+		self.under = under
+		self.marker = marker
+
+	def _iterdir(self, root):
+		'''Only give directories'''
+		for path in root.iterdir():
+			if path.is_dir():
+				yield path
+
+	def _iter_level(self, current_path, current_level):
+		print('under', self.under, 'cl', current_level)
+		if current_level == self.under:
+			
+			for path in self._iterdir(current_path):
+				print('yield', path)
+				yield path
+		else:
+			for path in self._iterdir(current_path):
+				print(current_path, current_level, path)
+				self._iter_level(path, current_level + 1)
 
 	def run(self):
-		'''Walk through root dir and zip if trigger file is in subdir'''
-		for subdir in self.root.iterdir():
-			if subdir.is_dir() and subdir.joinpath(self.trigger).is_file():
-				zip_path = self.root / f'{subdir.name}.zip'
-				if logging.root.level == logging.DEBUG:
-					print(f'DEBUG zipping {subdir} to {zip_path}')
-				if zip_path.exists():
-					logging.debug(f'Zip file {zip_path} already exists, skipping')
-					continue
-				logging.info(f'Creating {zip_path}')
-				with ZipFile(zip_path, 'w', ZIP_DEFLATED) as zf:
-					for path in subdir.rglob('*'):
-						if path.is_file() and path.name != self.trigger:
-							zf.write(path, path.relative_to(subdir))
+		'''Walk through root dir and zip if trigger file is in subdir at given level'''
+		def scan_level(current_path, current_level):
+			'''Recursive function to get to the given level'''
+			if current_level == self.under:
+				trigger = current_path / self.trigger
+				if trigger.is_file():
+					zip_path = self.root / f'{current_path.name}.zip'
+					if zip_path.exists():
+						logging.debug(f'File {zip_path} already exists, skipping')
+						if logging.root.level == logging.DEBUG:
+							print(f'DEBUG: File {zip_path} already exists, skipping')
+						return
+					logging.info(f'Creating {zip_path}')
+					print(f'INFO: zipping {current_path} to {zip_path}')
+					with ZipFile(zip_path, 'w', ZIP_DEFLATED) as zf:
+						for path in current_path.rglob('*'):
+							if path.is_file() and path.name != self.trigger:
+								zf.write(path, path.relative_to(current_path))
+					marked = current_path.parent / f'{current_path.name}{self.marker}'
+					logging.info(f'Renaming {current_path} to {marked}')
+					print(f'INFO: ...done, renaming {current_path} to {marked}')
+					trigger.unlink()
+					current_path.rename(marked)
+			else:
+				for subdir in current_path.iterdir():
+					if subdir.is_dir():
+						scan_level(subdir, current_level + 1)
+		scan_level(self.root, 1)	# Start recursive scan
 
 	def daemon(self):
 		'''Endless loop for daemon mode'''
-		while True:
-			try:
-				self.run()
-			except Exception as e:
-				logging.error(f'Something went wrong in main loop while checking:\n{e}')
-			sleep(1)
+		logging.info('Starting main loop')
+		print('INFO: Starting daemon, to abort main loop press Ctrl-C')
+		try:
+			while True:
+				try:
+					self.run()
+				except Exception as e:
+					logging.error(f'Something went wrong in main loop while checking:\n{e}')
+				sleep(1)
+		except KeyboardInterrupt:
+			print('\nReceived Ctrl-C, shutting down...')
 
 if __name__ == '__main__':	# start here if called as application
 	this_script_path = Path(__file__)
@@ -88,11 +127,23 @@ if __name__ == '__main__':	# start here if called as application
 		metavar = 'FILE',
 		default = Path.cwd() / 'zipdaemon.log'
 	)
+	argparser.add_argument('-m', '--marker',
+		type = str,
+		help = 'Marker for directories when zipped (default: _DELETE)',
+		metavar = 'STRING',
+		default = '_DELETE'
+	)
 	argparser.add_argument('-t', '--trigger',
 		type = str,
-		help = 'Trigger file (default: zipthis.txt)',
+		help = 'Trigger file name (default: zu_zippen.txt)',
 		metavar = 'FILE',
-		default = 'zipthis.txt'
+		default = 'zu_zippen.txt'
+	)
+	argparser.add_argument('-u', '--under',
+		type = int,
+		help = 'Directory level to look for trigger under root (default: 2)',
+		metavar = 'INTEGER',
+		default = 2
 	)
 	argparser.add_argument('root', nargs=1, type=Path, help='Root directory', metavar='DIRECTORY')
 	args = argparser.parse_args()
@@ -100,11 +151,10 @@ if __name__ == '__main__':	# start here if called as application
 	if args.debug:
 		print(f'DEBUG: running in debug mode, logfile: {args.logfile}')
 		logging.debug('Running in debug mode')
-		Walker(args.root[0], args.trigger).run()
+		Walker(args.root[0], args.trigger, args.under, args.marker).run()
 		logging.debug('Finished')
 		print('DEBUG: finished, logfile:')
 		print(args.logfile.read_text())
-		
 	else:
-		logging.info('Starting main loop')
-		Walker(args.root[0], args.trigger).daemon()
+		Walker(args.root[0], args.trigger, args.under, args.marker).daemon()
+	logging.shutdown()
