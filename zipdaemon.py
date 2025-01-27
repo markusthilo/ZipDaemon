@@ -57,7 +57,7 @@ class Walker:
 			if current_level == self.under:
 				trigger = current_path / self.trigger
 				if trigger.is_file():
-					zip_path = self.root / f'{current_path.name}.zip'
+					zip_path = current_path.parent / f'{current_path.name}.zip'
 					if zip_path.exists():
 						logging.debug(f'File {zip_path} already exists, skipping')
 						if logging.root.level == logging.DEBUG:
@@ -78,7 +78,7 @@ class Walker:
 				for subdir in current_path.iterdir():
 					if subdir.is_dir():
 						scan_level(subdir, current_level + 1)
-		scan_level(self.root, 1)	# Start recursive scan
+		scan_level(self.root, 0)	# Start recursive scan
 
 	def daemon(self):
 		'''Endless loop for daemon mode'''
